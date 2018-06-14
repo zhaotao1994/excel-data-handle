@@ -2,6 +2,7 @@ package vip.zhaotao.model;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import net.sourceforge.pinyin4j.format.exception.BadHanyuPinyinOutputFormatCombination;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -11,11 +12,10 @@ import vip.zhaotao.poi.ConvertUtils;
 import vip.zhaotao.poi.ExcelColumn;
 import vip.zhaotao.poi.ExcelUtils;
 import vip.zhaotao.util.PathUtil;
+import vip.zhaotao.util.PinYinUtils;
 
 import java.io.*;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -101,8 +101,68 @@ public class ChineseMedicineTest {
         excelColumnNameSet.add(ExcelColumn.CHINESE_MEDICINE_BOIL_MEDICINE_WAY.getColumnName());
     }
 
+    /**
+     * 处理药品名称
+     *
+     * @throws IllegalAccessException
+     * @throws IOException
+     * @throws InstantiationException
+     */
     @Test
-    public void read() throws IOException, InstantiationException, IllegalAccessException {
+    public void handleMedicineName() throws IllegalAccessException, IOException, InstantiationException, BadHanyuPinyinOutputFormatCombination {
+        // TODO Windows系统则将“test.xlsx”文件放置在桌面即可，其他系统放置在当前登录用户的根目录下
+        String filename = "test.xlsx";
+        String desktopOrUserHomePath = PathUtil.getDesktopOrUserHome();
+        File file = new File(String.format("%s%s", desktopOrUserHomePath, filename));
+        if (file.exists()) {
+            long startTime = System.currentTimeMillis();
+            InputStream in = new FileInputStream(file);
+            int startRow = 1;
+            List<ChineseMedicine> list = ExcelUtils.read(in, startRow, modelPropertyNameSet, ChineseMedicine.class);
+            Set<String> set = Sets.newHashSet();
+            if (CollectionUtils.isNotEmpty(list)) {
+                for (ChineseMedicine medicine : list) {
+                    set.add(medicine.getName().trim());
+                }
+                File sqlFile = new File(String.format("%s%s_%d.sql", desktopOrUserHomePath, "p_standard_product-chinese_medicine", System.currentTimeMillis()));
+                if (!sqlFile.exists()) {
+                    sqlFile.createNewFile();
+                }
+                BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(sqlFile));
+                String oneLevelSql = " (SELECT * FROM (SELECT id FROM gouyao.mall_category WHERE parent_category_id IS NULL AND name = '中药' AND isShow = 1 LIMIT 1) t)";
+                String twoLevelSql = " (SELECT * FROM (SELECT id FROM gouyao.mall_category WHERE parent_category_id IN (SELECT * FROM (SELECT id FROM gouyao.mall_category WHERE parent_category_id IS NULL AND name = '中药' AND isShow = 1 LIMIT 1) t1) AND name = '中药' LIMIT 1) t2)";
+                Iterator<String> iterator = set.iterator();
+                while (iterator.hasNext()) {
+                    StringBuilder builder = new StringBuilder();
+                    builder.append("INSERT INTO gouyao.p_standard_product(name, pinyin_name, headchar_name, brand_name, mall_category_level1, mall_category_level2, item_type, status, created, updated) ");
+                    builder.append("VALUES(");
+                    String name = iterator.next();
+                    String nameComplete = PinYinUtils.getComplete(name);
+                    String nameInitial = PinYinUtils.getInitial(name);
+                    builder.append(String.format("'%s', '%s', '%s'", name, nameComplete, nameInitial)).append(", ");
+                    builder.append("'',");
+                    builder.append(oneLevelSql).append(", ");
+                    builder.append(twoLevelSql).append(", ");
+                    builder.append("2, 1, NOW(), NOW());");
+                    bufferedWriter.write(builder.toString());
+                    bufferedWriter.newLine();
+                }
+                bufferedWriter.flush();
+                bufferedWriter.close();
+            }
+            System.err.println(String.format("总共%d条，去重后剩余%d条，耗时%.3f秒！", list.size(), set.size(), (System.currentTimeMillis() - startTime) / 1000.0));
+        }
+    }
+
+    /**
+     * 处理所有数据
+     *
+     * @throws IOException
+     * @throws InstantiationException
+     * @throws IllegalAccessException
+     */
+    @Test
+    public void handleAllData() throws IOException, InstantiationException, IllegalAccessException {
         // TODO Windows系统则将“test.xlsx”文件放置在桌面即可，其他系统放置在当前登录用户的根目录下
         String filename = "test.xlsx";
         ExcelUtils.Type type = ExcelUtils.Type.getByExpandedName(String.format(".%s", FilenameUtils.getExtension(filename)));
