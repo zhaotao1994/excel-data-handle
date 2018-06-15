@@ -118,7 +118,7 @@ public class ChineseMedicineTest {
             long startTime = System.currentTimeMillis();
             InputStream in = new FileInputStream(file);
             int startRow = 1;
-            List<ChineseMedicine> list = ExcelUtils.read(in, startRow, modelPropertyNameSet, ChineseMedicine.class);
+            List<ChineseMedicine> list = ExcelUtils.read(in, startRow, modelPropertyNameSet, ChineseMedicine.class, null);
             Set<String> set = Sets.newHashSet();
             if (CollectionUtils.isNotEmpty(list)) {
                 for (ChineseMedicine medicine : list) {
@@ -172,7 +172,7 @@ public class ChineseMedicineTest {
             long startTime = System.currentTimeMillis();
             InputStream in = new FileInputStream(file);
             int startRow = 1;
-            List<ChineseMedicine> list = ExcelUtils.read(in, startRow, modelPropertyNameSet, ChineseMedicine.class);
+            List<ChineseMedicine> list = ExcelUtils.read(in, startRow, modelPropertyNameSet, ChineseMedicine.class, null);
             List<ChineseMedicine> matchingList = Lists.newArrayList();
             List<ChineseMedicine> mismatchingList = Lists.newArrayList();
             List<ChineseMedicine> emptyList = Lists.newArrayList();

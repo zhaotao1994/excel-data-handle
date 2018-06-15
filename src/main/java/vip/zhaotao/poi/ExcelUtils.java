@@ -174,19 +174,23 @@ public class ExcelUtils {
      * 读取
      *
      * @param in
-     * @param startRow 起始行，例如：表头占用1行，则该值为1，excel行号起始值为0。
-     * @param property JavaBean属性，必须与表头一一对应。
+     * @param startRow         起始行，例如：表头占用1行，则该值为1，excel行号起始值为0。
+     * @param property         JavaBean属性，必须与表头一一对应。
      * @param clazz
      * @param <T>
+     * @param handleFairlyList 处理失败集合
      * @return
      * @throws IOException
      * @throws IllegalAccessException
      * @throws InstantiationException
      */
-    public static <T> List<T> read(InputStream in, int startRow, LinkedHashSet<String> property, Class<T> clazz) throws IOException, IllegalAccessException, InstantiationException {
+    public static <T> List<T> read(InputStream in, int startRow, LinkedHashSet<String> property, Class<T> clazz, List<Map<String, Object>> handleFairlyList) throws IOException, IllegalAccessException, InstantiationException {
         String[] propertyArray = property.toArray(new String[]{});
 
         List<T> list = Lists.newArrayList();
+        if (handleFairlyList == null) {
+            handleFairlyList = Lists.newArrayList();
+        }
         Workbook workBook = getWorkBook(in);
         // 默认读取第1个工作表
         Sheet sheet = workBook.getSheetAt(0);
@@ -198,6 +202,7 @@ public class ExcelUtils {
             short firstCellNum = row.getFirstCellNum();
             short lastCellNum = row.getLastCellNum();
             Map<String, Object> map = Maps.newHashMap();
+            Map<String, Object> handleFairlyMap = Maps.newHashMap();
             int index = 0;
             T bean = clazz.newInstance();
             while (firstCellNum < lastCellNum) {
@@ -205,24 +210,38 @@ public class ExcelUtils {
                 if (cell == null) {
                     map.put(propertyArray[index], null);
                 } else {
+                    // 处理前的值
+                    Object handleBefore = null;
+                    // 处理后的值
+                    Object handleAfter = null;
                     switch (cell.getCellTypeEnum()) {
                         case NUMERIC:
                             if (DateUtil.isCellDateFormatted(cell)) {
-                                map.put(propertyArray[index], cell.getDateCellValue());
+                                handleBefore = handleAfter = cell.getDateCellValue();
                             } else {
-                                map.put(propertyArray[index], valueHandle(bean, propertyArray[index], NumberToTextConverter.toText(cell.getNumericCellValue())));
+                                handleBefore = NumberToTextConverter.toText(cell.getNumericCellValue());
+                                handleAfter = valueHandle(bean, propertyArray[index], handleBefore);
                             }
                             break;
                         case STRING:
-                            map.put(propertyArray[index], valueHandle(bean, propertyArray[index], cell.getStringCellValue()));
+                            handleBefore = cell.getStringCellValue();
+                            handleAfter = valueHandle(bean, propertyArray[index], handleBefore);
                             break;
                         case BOOLEAN:
-                            map.put(propertyArray[index], cell.getBooleanCellValue());
+                            handleBefore = handleAfter = cell.getBooleanCellValue();
                             break;
+                    }
+                    map.put(propertyArray[index], handleAfter);
+                    // 说明列内容类型与对象属性类型不匹配
+                    if (handleBefore != null && handleAfter == null) {
+                        handleFairlyMap.put(propertyArray[index], handleBefore);
                     }
                 }
                 index++;
                 firstCellNum++;
+            }
+            if (!handleFairlyMap.isEmpty()) {
+                handleFairlyList.add(handleFairlyMap);
             }
             list.add(mapToBean(bean, map));
             startRow++;
