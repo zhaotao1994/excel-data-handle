@@ -124,7 +124,7 @@ public class ChineseMedicineTest {
                 for (ChineseMedicine medicine : list) {
                     set.add(medicine.getName().trim());
                 }
-                File sqlFile = new File(String.format("%s%s_%d.sql", desktopOrUserHomePath, "p_standard_product-chinese_medicine", System.currentTimeMillis()));
+                File sqlFile = new File(String.format("%s%s_%d.sql", desktopOrUserHomePath, "p_standard_product-chinese_medicine-data", System.currentTimeMillis()));
                 if (!sqlFile.exists()) {
                     sqlFile.createNewFile();
                 }
@@ -176,6 +176,11 @@ public class ChineseMedicineTest {
             List<ChineseMedicine> matchingList = Lists.newArrayList();
             List<ChineseMedicine> mismatchingList = Lists.newArrayList();
             List<ChineseMedicine> emptyList = Lists.newArrayList();
+            File sqlFile = new File(String.format("%s%s_%d.sql", desktopOrUserHomePath, "p_chinese_medicine-data", System.currentTimeMillis()));
+            if (!sqlFile.exists()) {
+                sqlFile.createNewFile();
+            }
+            BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(sqlFile));
             for (ChineseMedicine medicine : list) {
                 if (StringUtils.isBlank(medicine.getRemark())) {
                     emptyList.add(medicine);
@@ -184,7 +189,26 @@ public class ChineseMedicineTest {
                 } else {
                     mismatchingList.add(medicine);
                 }
+                StringBuilder builder = new StringBuilder();
+                builder.append("INSERT INTO gouyao.p_chinese_medicine(id, name, remark, basic_squared_add_and_sub, master_id, sort, dosage, dosage_min, dosage_max, dosage_unit, boil_medicine_way) ");
+                builder.append("VALUES(");
+                builder.append(medicine.getId()).append(", ");
+                builder.append("'").append(medicine.getName().trim()).append("', ");
+                builder.append("'").append(medicine.getRemark() != null ? medicine.getRemark().trim() : "").append("', ");
+                builder.append(medicine.getBasicSquaredAddAndSub()).append(", ");
+                builder.append(medicine.getMasterId()).append(", ");
+                builder.append(medicine.getSort()).append(", ");
+                builder.append(medicine.getDosage()).append(", ");
+                builder.append(medicine.getDosageMin()).append(", ");
+                builder.append(medicine.getDosageMax()).append(", ");
+                builder.append("'").append(medicine.getDosageUnit() != null ? medicine.getDosageUnit().trim() : "").append("', ");
+                builder.append("'").append(medicine.getBoilMedicineWay() != null ? medicine.getBoilMedicineWay().trim() : "").append("'");
+                builder.append(");");
+                bufferedWriter.write(builder.toString());
+                bufferedWriter.newLine();
             }
+            bufferedWriter.flush();
+            bufferedWriter.close();
             if (CollectionUtils.isNotEmpty(matchingList)) {
                 this.write(type, excelColumnNameSet, matchingList, String.format("%s%s_%d%s", desktopOrUserHomePath, "处理成功中药数据", System.currentTimeMillis(), type.getExpandedName()));
             }
